@@ -12,7 +12,6 @@ public class Rocket : MonoBehaviour
 
     [SerializeField] AudioClip mainEngine;
     [SerializeField] AudioClip levelComplete;
-
     [SerializeField] List<AudioClip> deathSounds;
 
     [SerializeField] ParticleSystem mainEngineParticles;
@@ -22,13 +21,8 @@ public class Rocket : MonoBehaviour
     Rigidbody rigidBody;
     AudioSource audioSource;
 
-    enum State
-    {
-        Alive, 
-        Dying,
-        Transcending
-    }
-    State state = State.Alive;
+    bool isTransitioning = false;
+    bool collisionsDisabled = false;
 
     // Start is called before the first frame update
     void Start()
@@ -40,28 +34,47 @@ public class Rocket : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        if (state == State.Alive)
+        if (!isTransitioning)
         {
             RespondToThrustInput();
             RespondToRotateInput();
+        }
+        if (Debug.isDebugBuild)
+        {
+            RespondToDebugKeys();
+        }
+    }
+
+    private void RespondToDebugKeys()
+    {
+        if (Input.GetKeyDown(KeyCode.L))
+        {
+            LoadNextLevel();
+        }
+        else if (Input.GetKeyDown(KeyCode.C))
+        {
+            collisionsDisabled = !collisionsDisabled;
         }
     }
 
     private void RespondToRotateInput()
     {
-        rigidBody.freezeRotation = true;
-
-        float rotationThisFrame = rcsThrust * Time.deltaTime;
+        //rigidBody.angularVelocity = Vector3.zero;
         if (Input.GetKey(KeyCode.A))
         {
-            transform.Rotate(Vector3.forward * rotationThisFrame);
+            RotateManually(-rcsThrust * Time.deltaTime);
         }
         else if (Input.GetKey(KeyCode.D))
         {
-            transform.Rotate(-Vector3.forward * rotationThisFrame);
+            RotateManually(rcsThrust * Time.deltaTime);
         }
+    }
 
-        rigidBody.freezeRotation = false;
+    private void RotateManually(float rotationThisFrame)
+    {
+        //rigidBody.freezeRotation = true;
+        transform.Rotate(-Vector3.forward * rotationThisFrame);
+        //rigidBody.freezeRotation = false;
     }
 
     private void RespondToThrustInput()
@@ -72,9 +85,14 @@ public class Rocket : MonoBehaviour
         }
         else
         {
-            audioSource.Stop();
-            mainEngineParticles.Stop();
+            StopApplyingThrust();
         }
+    }
+
+    private void StopApplyingThrust()
+    {
+        audioSource.Stop();
+        mainEngineParticles.Stop();
     }
 
     private void ApplyThrust()
@@ -89,12 +107,12 @@ public class Rocket : MonoBehaviour
 
     private void OnCollisionEnter(Collision collision)
     {
-        if (state != State.Alive) { return; }
+        if (isTransitioning || collisionsDisabled) { return; }
 
         switch (collision.gameObject.tag)
         {
             case "Friendly":
-                print("OK");
+                
                 break;
             case "Finish":
                 StartSuccessSequence();
@@ -107,29 +125,45 @@ public class Rocket : MonoBehaviour
 
     private void StartDeathSequence()
     {
-        state = State.Dying;
+        rigidBody.freezeRotation = false;
+        isTransitioning = true;
         audioSource.Stop();
-        Invoke("LoadStartScene", levelLoadDealy);
         audioSource.PlayOneShot(deathSounds[UnityEngine.Random.Range(0, 4)]);
         deathParticles.Play();
+        Invoke("LoadCurrentLevel", levelLoadDealy);
     }
 
     private void StartSuccessSequence()
     {
-        state = State.Transcending;
+        isTransitioning = true;
         audioSource.Stop();
-        Invoke("LoadNextScene", levelLoadDealy);
         audioSource.PlayOneShot(levelComplete);
         levelCompleteParticles.Play();
+        Invoke("LoadNextLevel", levelLoadDealy);
     }
 
-    private void LoadStartScene()
+    private void LoadCurrentLevel()
+    {
+        int currentSceneIndex = SceneManager.GetActiveScene().buildIndex;
+        SceneManager.LoadScene(currentSceneIndex);
+    }
+
+    private void LoadNextLevel()
+    {
+        int currentSceneIndex = SceneManager.GetActiveScene().buildIndex;
+        int nextSceneIndex = currentSceneIndex + 1;
+        if (nextSceneIndex == SceneManager.sceneCountInBuildSettings)
+        {
+            nextSceneIndex = 0;
+        }
+        SceneManager.LoadScene(nextSceneIndex); 
+    }
+    private void LoadFirstLevel()
     {
         SceneManager.LoadScene(0);
     }
-
-    private void LoadNextScene()
+    private void Exit()
     {
-        SceneManager.LoadScene(1);
+        Application.Quit();
     }
 }

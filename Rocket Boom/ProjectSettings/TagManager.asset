@@ -6,6 +6,8 @@ TagManager:
   tags:
   - Friendly
   - Fuel
+  - ThrusterLeft
+  - ThrusterRight
   layers:
   - Default
   - TransparentFX
